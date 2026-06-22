@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-nyx-bg text-nyx-text">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self' ipc://localhost tauri://localhost; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc://localhost tauri://localhost;" />
+    <title>Nyx Backup Recovery</title>
+    <style>
+      /* Prevent white flash before CSS loads. */
+      body { background-color: rgb(13 15 20); margin: 0; }
+    </style>
+  </head>
+  <body class="bg-nyx-bg text-nyx-text">
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

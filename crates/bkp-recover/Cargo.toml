@@ -1,0 +1,65 @@
+[package]
+name        = "bkp-recover"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition     = "2024"
+
+# Two binaries: GUI (Tauri 2.x) and CLI (headless).
+[[bin]]
+name = "nyx_bkp_recover"
+path = "src/bin/gui.rs"
+
+# GUI only.  Recovery is fundamentally a GUI-shaped problem (read remote
+# state, present a tree, pick files, click Restore); a flag-based CLI
+# does not pay off its maintenance cost (OAuth is impossible in a TTY,
+# multi-line GCS service-account JSON on a command line is awful,
+# progress is hard to render).  A ratatui-based TUI with the same tree
+# picker + progress primitives is a possible future addition for
+# terminal-friendly rescue-media scenarios.
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# Engine crates: direct in-process restore, no daemon.  Deliberately
+# excludes bkp-engine, bkp-retention, bkp-integrity, bkp-watcher,
+# bkp-scheduler - the Recovery Tool only reads from storage.
+bkp-config   = { path = "../bkp-config" }
+bkp-oauth    = { path = "../bkp-oauth" }
+tokio-util   = { workspace = true }
+bkp-crypto   = { path = "../bkp-crypto" }
+bkp-log      = { path = "../bkp-log" }
+bkp-manifest = { path = "../bkp-manifest" }
+bkp-restore  = { path = "../bkp-restore" }
+bkp-storage  = { path = "../bkp-storage" }
+bkp-types    = { path = "../bkp-types" }
+
+# Async / serialisation / logging
+anyhow             = { workspace = true }
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+tokio              = { workspace = true, features = ["full"] }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid               = { workspace = true }
+dirs-next          = "2"
+
+# GUI side (Tauri 2.x).
+tauri               = { version = "2", features = ["custom-protocol", "image-ico", "image-png"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell  = "2"
+
+# clap is not needed (GUI only).  Re-add if
+# a future ratatui TUI needs arg parsing.
+
+# Disk-space probe (rec_get_free_space).  Platform-gated so non-Windows
+# builds don't pull windows-sys in.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

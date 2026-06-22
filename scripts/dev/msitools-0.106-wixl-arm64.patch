@@ -1,0 +1,73 @@
+# Nyx Backup Recovery - wixl ARM64 support patch for msitools 0.106.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Adds Windows ARM64 target support to wixl, which stock msitools (<= 0.106,
+# the latest release) lacks: its Arch enum is only x86/ia64/x64 and it rejects
+# `--arch arm64` with "arch of type 'arm64' is not supported".
+#
+# Changes:
+#   - Add ARM64 to the Arch enum.  enum_from_string<Arch> then accepts the
+#     "arm64" CLI token automatically (the GEnum nick is the lowercased member
+#     name, same mechanism that makes "x64" map to X64).
+#   - Map ARM64 to the MSI _SummaryInformation Template "Arm64" (the platform
+#     field Windows Installer reads; full value becomes "Arm64;1033").
+#   - Treat ARM64 as 64-bit for the implicit component / registry-search
+#     ComponentAttribute.64BIT and RegistryType.64BIT defaults.
+#   - to_string() mapping for completeness.
+#
+# Apply from the msitools-0.106 source root:
+#   patch -p1 < msitools-0.106-wixl-arm64.patch
+# Then build/install (see scripts/dev/setup_arm64_buildhost.sh, which downloads,
+# applies the equivalent edits, builds with meson, and installs to /usr/local).
+#
+diff -ruN a/tools/wixl/builder.vala b/tools/wixl/builder.vala
+--- a/tools/wixl/builder.vala
++++ b/tools/wixl/builder.vala
+@@ -5,7 +5,8 @@
+         INTEL = 0,
+         IA64 = 1,
+         INTEL64 = 1,
+-        X64;
++        X64,
++        ARM64;
+
+         public static Arch from_string(string s) throws GLib.Error {
+             return enum_from_string<Arch> (s);
+@@ -16,6 +17,7 @@
+                 case X86: return "x86";
+                 case IA64: return "ia64";
+                 case X64: return "x64";
++                case ARM64: return "arm64";
+                 default: return "";
+             }
+         }
+@@ -541,7 +543,7 @@
+
+             if (comp.Win64 != null && parse_yesno (comp.Win64))
+                 attr |= ComponentAttribute.64BIT;
+-            else if (comp.Win64 == null && (arch == Arch.X64 || arch == Arch.IA64))
++            else if (comp.Win64 == null && (arch == Arch.X64 || arch == Arch.IA64 || arch == Arch.ARM64))
+                 attr |= ComponentAttribute.64BIT;
+
+             if (comp.Permanent != null && parse_yesno (comp.Permanent))
+@@ -1316,7 +1318,7 @@
+
+             if (search.Win64 != null && parse_yesno (search.Win64))
+                 type |= RegistryType.64BIT;
+-            else if (search.Win64 == null && (arch == Arch.X64 || arch == Arch.IA64))
++            else if (search.Win64 == null && (arch == Arch.X64 || arch == Arch.IA64 || arch == Arch.ARM64))
+                 type |= RegistryType.64BIT;
+
+             db.table_app_search.add (property.Id, search.Id);
+diff -ruN a/tools/wixl/msi.vala b/tools/wixl/msi.vala
+--- a/tools/wixl/msi.vala
++++ b/tools/wixl/msi.vala
+@@ -1189,6 +1189,8 @@
+         string get_arch_template () {
+             if (arch == Arch.X86)
+                 return "Intel";
++            else if (arch == Arch.ARM64)
++                return "Arm64";
+             else
+                 return "x64";
+         }

@@ -1,0 +1,38 @@
+[package]
+name        = "bkp-restore"
+version.workspace = true
+edition     = "2024"
+description = "Restore engine: snapshot browsing, selective file restore, chunk download and reassembly"
+
+[dependencies]
+thiserror   = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+serde       = { workspace = true }
+tokio = { workspace = true }
+bkp-types = { path = "../bkp-types" }
+bkp-crypto = { path = "../bkp-crypto" }
+bkp-storage = { path = "../bkp-storage" }
+bkp-manifest = { path = "../bkp-manifest" }
+bkp-chunker = { path = "../bkp-chunker" }
+hex        = { workspace = true }
+uuid       = { workspace = true }
+serde_json = { workspace = true }
+dirs-next  = "2"
+chrono     = { workspace = true }
+filetime   = { workspace = true }
+futures    = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_System_IO",
+] }

@@ -1,0 +1,87 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/bkp-types",
+    "crates/bkp-crypto",
+    "crates/bkp-config",
+    "crates/bkp-oauth",
+    "crates/bkp-log",
+    "crates/bkp-storage",
+    "crates/bkp-chunker",
+    "crates/bkp-manifest",
+    "crates/bkp-restore",
+    "crates/bkp-recover",
+]
+
+[workspace.package]
+version = "0.9.10"
+authors = ["Nyx Backup"]
+license = "Apache-2.0"
+edition = "2024"
+
+[workspace.dependencies]
+aes-gcm        = { version = "0.10" }
+anyhow         = { version = "1" }
+argon2         = { version = "0.5", features = ["password-hash", "std"] }   # Argon2id passphrase re-derivation
+async-trait    = { version = "0.1" }
+azure_storage_blobs = { version = "0.21.0" }
+base64         = { version = "0.22" }
+bytes          = { version = "1" }
+chrono         = { version = "0.4", features = ["serde"] }
+ciborium       = { version = "0.2" }    # CBOR per data format spec
+filetime       = { version = "0.2" }
+flate2         = { version = "1" }
+futures        = { version = "0.3" }
+hex            = { version = "0.4" }
+hkdf           = { version = "0.12" }
+pbkdf2         = { version = "0.12" }   # RFC 8018 PBKDF2-HMAC-SHA256 (passphrase re-derivation)
+hmac           = { version = "0.12" }
+http           = { version = "1" }
+libc           = { version = "0.2" }
+object_store   = { version = "0.13", features = ["aws", "azure", "gcp"] }  # S3/Azure/GCS + local
+# Features (vendored / vendored-openssl) are applied per-target in bkp-storage:
+# Unix vendors OpenSSL for libssh2's SFTP crypto; Windows uses WinCNG (libssh2-sys
+# default) and pulls no OpenSSL - OpenSSL has no aarch64-pc-windows-gnullvm build
+# target, so vendoring it there breaks the ARM64 cross-build.
+openssl        = { version = "0.10" }
+rand           = { version = "0.8" }
+reqwest        = { version = "0.13.4", features = ["json", "native-tls", "form", "multipart", "query"], default-features = false }
+serde          = { version = "1", features = ["derive"] }
+serde_json     = { version = "1" }
+sha2           = { version = "0.10" }
+ssh2           = { version = "0.9" }  # vendored-openssl applied per-target (Unix only)
+thiserror      = { version = "2.0.18" }
+tokio          = { version = "1", features = ["full"] }
+tokio-util     = { version = "0.7" }
+toml           = { version = "1.1.2" }
+tracing        = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
+unicode-normalization = { version = "0.1" }   # NFC passphrase normalisation (NIST SP 800-132)
+uuid           = { version = "1", features = ["v4", "serde"] }
+zeroize        = { version = "1", features = ["derive"] }
+zstd           = { version = "0.13" }
+
+[profile.release]
+opt-level     = 3
+lto           = "thin"
+codegen-units = 1
+strip         = true
+
+[profile.dev]
+opt-level     = 0
+debug         = true
+
+# Dev iteration profile - cuts a from-scratch MSI build wall-clock
+# by ~60-70% vs. `release`.  Use when you are iterating on a fix
+# and shipping is not the goal; the binary is ~25-30% larger and
+# ~5-10% slower at runtime but compiles in roughly one-third the
+# wall-clock (thin LTO + codegen-units = 1 are the two slow knobs;
+# we relax both).  Invocation:
+#   scripts/windows/build_windows_x86_64.sh --fast
+# Drops `--release` for `--profile release-fast` end-to-end.
+[profile.release-fast]
+inherits      = "release"
+lto           = false
+codegen-units = 16
+opt-level     = 2
+strip         = true

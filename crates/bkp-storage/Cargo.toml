@@ -1,0 +1,55 @@
+[package]
+name        = "bkp-storage"
+version.workspace = true
+edition     = "2024"
+description = "StorageBackend trait and implementations: S3, Azure, B2, SFTP, local, SMB, S3-compatible"
+
+[dependencies]
+thiserror   = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+serde       = { workspace = true }
+tokio       = { workspace = true }
+async-trait = { workspace = true }
+bytes       = { workspace = true }
+futures     = { workspace = true }
+object_store = { workspace = true }
+http         = { workspace = true }
+azure_storage_blobs = { workspace = true }
+reqwest = { workspace = true }
+uuid = { workspace = true }
+toml = { workspace = true }
+sha2       = { workspace = true }
+hmac       = { workspace = true }
+base64     = { workspace = true }
+hex        = { workspace = true }
+chrono     = { workspace = true }
+serde_json = { workspace = true }
+rand      = { workspace = true }
+bkp-types = { path = "../bkp-types" }
+bkp-crypto = { path = "../bkp-crypto" }
+# WebDAV backend.  PROPFIND XML parsing only - small, no
+# tokio integration needed, parses streaming Events to find <d:href>
+# and <d:getcontentlength>.
+quick-xml = "0.36"
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+# SFTP backend.  On Unix, vendor OpenSSL for libssh2's crypto so the binary
+# does not require a system libssh2/OpenSSL at runtime (and to cross-compile).
+ssh2    = { workspace = true, features = ["vendored-openssl"] }
+# Pulled only to activate the vendored OpenSSL build; not used in code directly.
+openssl = { workspace = true, features = ["vendored"] }
+
+[target.'cfg(windows)'.dependencies]
+# SFTP backend.  On Windows, libssh2-sys uses the built-in WinCNG crypto
+# backend (its default), so no OpenSSL is needed - which also avoids OpenSSL's
+# missing aarch64-pc-windows-gnullvm build target on the ARM64 cross-build.
+ssh2 = { workspace = true }
+# WNetAddConnection2W / WNetCancelConnection2W for SMB credential
+# binding so the process can authenticate to a Samba
+# share as a non-machine account using a password from the keychain.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_NetworkManagement_WNet"] }
+
+[dev-dependencies]
+tempfile = "3"

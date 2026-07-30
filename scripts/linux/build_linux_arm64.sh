@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+# Copyright (c) 2026 Nyx Software, LLC
+# SPDX-License-Identifier: Apache-2.0
+# Nyx Backup Recovery - https://nyxbackup.com
+# Build the standalone Nyx Backup Recovery binary for Linux ARM64 (aarch64)
+# and stage it.
+#
+# This cross-compiles from an x86-64 host using the aarch64-linux-gnu GCC
+# toolchain.  The Tauri GUI links against WebKitGTK/GTK, so the ARM64
+# (:arm64 multiarch) dev libraries must be present on the build host - this
+# is the one piece that is NOT installable with the plain x86-64 dev setup.
+#
+# Requirements (Ubuntu/Debian x86-64 host):
+#   sudo apt install gcc-aarch64-linux-gnu pkg-config
+#   rustup target add aarch64-unknown-linux-gnu
+#
+#   # ARM64 GUI dev libs (enable the arm64 architecture first):
+#   sudo dpkg --add-architecture arm64
+#   sudo apt update
+#   sudo apt install libwebkit2gtk-4.1-dev:arm64 libgtk-3-dev:arm64 \
+#                    libayatana-appindicator3-dev:arm64 librsvg2-dev:arm64 \
+#                    libsoup-3.0-dev:arm64 libjavascriptcoregtk-4.1-dev:arm64 \
+#                    libssh2-1-dev:arm64 libssl-dev:arm64 \
+#                    libsmbclient-dev:arm64
+#
+# Cleaner alternative: build on a native ARM64 host / CI ARM64 runner, where
+# the normal scripts/linux/build_linux_x86_64.sh dependency set applies and no
+# cross-toolchain is needed - just swap the target triple.
+#
+# Output: staging/linux/arm64/   (nyx_bkp_recover + locales, ready for
+#         scripts/linux/build_recover_deb_arm64.sh)
+#
+# GLIBC COMPATIBILITY: the binary requires a glibc at least as new as the arm64
+# libs it linked against - the host's :arm64 multiarch set when cross-building,
+# or the host glibc when building natively.  Release builds must therefore use
+# Ubuntu 22.04 arm64 libs (glibc 2.35), the oldest arm64 base shipping
+# libwebkit2gtk-4.1.  Building against 24.04 libs pulls in GLIBC_2.38/2.39 and
+# the .deb then refuses to run on Ubuntu 22.04 / Debian 12 / Raspberry Pi OS.
+# build_recover_deb_arm64.sh enforces the ceiling.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+if [[ -f "${WORKSPACE_DIR}/.env" ]]; then
+    set -a; source "${WORKSPACE_DIR}/.env"; set +a
+fi
+: "${GOOGLE_OAUTH_CLIENT_ID:?Set GOOGLE_OAUTH_CLIENT_ID in .env or the environment}"
+: "${GOOGLE_OAUTH_CLIENT_SECRET:?Set GOOGLE_OAUTH_CLIENT_SECRET in .env or the environment}"
+: "${DROPBOX_APP_KEY:?Set DROPBOX_APP_KEY in .env or the environment}"
+: "${DROPBOX_APP_SECRET:?Set DROPBOX_APP_SECRET in .env or the environment}"
+: "${ONEDRIVE_OAUTH_CLIENT_ID:?Set ONEDRIVE_OAUTH_CLIENT_ID in .env or the environment}"
+
+TARGET_BASE="aarch64-unknown-linux-gnu"
+PROFILE="${PROFILE:-release}"
+STAGING="${WORKSPACE_DIR}/staging/linux/arm64"
+ARM64_MULTIARCH="aarch64-linux-gnu"
+
+# Honour CARGO_TARGET_DIR so a release build on an older-glibc host can keep
+# its artifacts out of the dev host's target/.  See build_linux_x86_64.sh.
+TARGET_ROOT="${CARGO_TARGET_DIR:-${WORKSPACE_DIR}/target}"
+
+# -- Preflight checks --------------------------------------------------------
+check_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: $1 not found. $2"; exit 1; }; }
+check_cmd cargo "Install Rust: https://rustup.rs"
+check_cmd node  "Install Node: sudo apt install nodejs"
+check_cmd npm   "Install npm:  sudo apt install npm"
+
+# Distinguish a native ARM64 host from an x86-64 cross-build host.  On a native
+# aarch64 host the system compiler and pkg-config already target ARM64, so the
+# cross-toolchain and the arch-suffixed pkg-config paths are unnecessary.
+HOST_ARCH="$(uname -m)"
+if [[ "$HOST_ARCH" == "aarch64" || "$HOST_ARCH" == "arm64" ]]; then
+    NATIVE_ARM=1
+    echo "Native ARM64 host detected - building without a cross-toolchain."
+else
+    NATIVE_ARM=0
+    check_cmd "${ARM64_MULTIARCH}-gcc" "Install: sudo apt install gcc-aarch64-linux-gnu"
+    # Point pkg-config at the ARM64 multiarch .pc files so the GUI libs resolve
+    # to the arm64 variants, not the host x86-64 ones.
+    export PKG_CONFIG_ALLOW_CROSS=1
+    export PKG_CONFIG_LIBDIR="/usr/lib/${ARM64_MULTIARCH}/pkgconfig:/usr/share/pkgconfig"
+    export PKG_CONFIG_PATH="/usr/lib/${ARM64_MULTIARCH}/pkgconfig"
+    # libsmbclient (SMB backend) is fetched into a sysroot rather than
+    # apt-installed - see fetch_arm64_smbclient below for why - so its .pc file
+    # and libraries live outside the system paths.
+    SMB_SYSROOT="${TARGET_ROOT}/arm64-sysroot"
+    export PKG_CONFIG_LIBDIR="${SMB_SYSROOT}/usr/lib/${ARM64_MULTIARCH}/pkgconfig:${PKG_CONFIG_LIBDIR}"
+    export PKG_CONFIG_PATH="${SMB_SYSROOT}/usr/lib/${ARM64_MULTIARCH}/pkgconfig:${PKG_CONFIG_PATH}"
+    export PKG_CONFIG_SYSROOT_DIR=""
+    # cargo / cc-rs cross-compile wiring for the aarch64 target.
+    export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="${ARM64_MULTIARCH}-gcc"
+    export CC_aarch64_unknown_linux_gnu="${ARM64_MULTIARCH}-gcc"
+    export CXX_aarch64_unknown_linux_gnu="${ARM64_MULTIARCH}-g++"
+    export AR_aarch64_unknown_linux_gnu="${ARM64_MULTIARCH}-ar"
+fi
+
+# On a cross host the GUI -dev packages are not co-installable across
+# architectures: a host that last built the x86-64 .deb has had its :arm64
+# webkit/gtk -dev packages evicted by the :amd64 ones (and the arm64 set may
+# never have been installed at all).  Flip them rather than making the caller
+# do it.  See scripts/dev/switch_gui_dev_arch.sh, which also adds the arm64
+# foreign architecture, the ports.ubuntu.com sources and the cross toolchain
+# (NYX_NO_AUTO_DEPS=1 turns the automatic install off).  On a native ARM64
+# host this is the plain amd64-style dev set and no switching applies.
+if ! pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
+    if [[ "$NATIVE_ARM" == "1" ]]; then SWITCH_MODE="host"; else SWITCH_MODE="arm64-cross"; fi
+    bash "${SCRIPT_DIR}/../dev/switch_gui_dev_arch.sh" "$SWITCH_MODE" || {
+        echo "ERROR: webkit2gtk-4.1 (arm64) dev packages not found - required for the GUI."
+        echo "  This is the host dependency the ARM64 cross-build needs.  Enable the"
+        echo "  arm64 architecture and install the :arm64 dev libs (see this script's"
+        echo "  header), or build on a native ARM64 host / CI runner."
+        exit 1
+    }
+fi
+
+# -- libsmbclient for arm64 (SMB backend) ------------------------------------
+# The SMB backend links libsmbclient so recovery can read a share in-process,
+# with no OS mount.  The arm64 headers must NOT be apt-installed on an x86-64
+# host: libsmbclient-dev pulls Samba's python3 bindings, so apt satisfies
+# `libsmbclient-dev:arm64` by REMOVING the host's amd64 python3 and unpacking
+# arm64 python3 over it, which cannot execute:
+#
+#   /var/lib/dpkg/info/python3.10-minimal.postinst: /usr/bin/python3.10: Exec format error
+#
+# leaving the host with no python3 and dpkg mid-transaction.  Download the two
+# packages and unpack them into a private sysroot instead - no dependency
+# resolution, no host packages touched.  Cached; delete the directory to
+# refresh.  (A native arm64 host just uses its installed libsmbclient-dev.)
+fetch_arm64_smbclient() {
+    local sysroot="$1"
+    local pc="${sysroot}/usr/lib/${ARM64_MULTIARCH}/pkgconfig/smbclient.pc"
+    local samba_dir="${sysroot}/usr/lib/${ARM64_MULTIARCH}/samba"
+    [[ -f "$pc" && -d "$samba_dir" ]] && {
+        echo "arm64 libsmbclient sysroot present: ${sysroot}"
+        return 0
+    }
+
+    # libsmbclient.so is a thin front end over Samba's private libraries
+    # (libsamba-util, libsmbconf, libndr, ... in the samba/ subdirectory), plus
+    # talloc/tevent/wbclient/bsd.  Linking resolves those transitively, so the
+    # whole set has to be in the sysroot or ld reports a wall of
+    # "undefined reference to ...@SAMBA_UTIL_0.0.1".
+    local pkgs=(
+        libsmbclient-dev libsmbclient
+        samba-libs libtalloc2 libtevent0 libwbclient0 libbsd0
+        libldb2 libtdb1
+    )
+
+    echo "Fetching arm64 libsmbclient + Samba libraries into ${sysroot}..."
+    local tmp
+    tmp="$(mktemp -d)"
+    (
+        cd "$tmp" || exit 1
+        local p
+        for p in "${pkgs[@]}"; do
+            # 24.04+ renamed the runtime package to libsmbclient0; try both.
+            apt-get download "${p}:arm64" 2>/dev/null \
+                || apt-get download "${p}0:arm64" 2>/dev/null \
+                || { echo "ERROR: could not download ${p}:arm64"; exit 1; }
+        done
+    ) || { rm -rf "$tmp"; return 1; }
+
+    mkdir -p "$sysroot"
+    local deb
+    for deb in "$tmp"/*.deb; do
+        dpkg-deb -x "$deb" "$sysroot"
+    done
+    rm -rf "$tmp"
+
+    [[ -f "$pc" ]] || { echo "ERROR: ${pc} missing after unpack."; return 1; }
+    [[ -d "$samba_dir" ]] || { echo "ERROR: ${samba_dir} missing after unpack."; return 1; }
+    echo "arm64 libsmbclient sysroot ready ($(find "$sysroot" -name '*.so*' | wc -l) libraries)."
+}
+
+if [[ "$NATIVE_ARM" != "1" ]]; then
+    fetch_arm64_smbclient "$SMB_SYSROOT" || exit 1
+    SMB_LIBDIR="${SMB_SYSROOT}/usr/lib/${ARM64_MULTIARCH}"
+    # Two search paths: the multiarch dir for libsmbclient/talloc/tevent, and
+    # the private samba/ dir for everything libsmbclient itself pulls in.
+    # -rpath-link is what lets ld follow those indirect DT_NEEDED entries at
+    # link time (it does not end up in the binary's RPATH; the .deb declares
+    # the runtime dependency instead).
+    export RUSTFLAGS="${RUSTFLAGS:-} -L native=${SMB_LIBDIR} -L native=${SMB_LIBDIR}/samba"
+    export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-Wl,-rpath-link=${SMB_LIBDIR}:${SMB_LIBDIR}/samba"
+    # The binary calls only smbc_* - everything below libsmbclient (Samba's
+    # private libs, then ldb/tdb, then jansson/gnutls/cups/avahi/krb5...) is a
+    # transitive dependency that the target resolves at runtime via the .deb's
+    # Depends.  Without this, ld insists on resolving that entire closure at
+    # link time and the sysroot would have to mirror most of the distro.
+    export RUSTFLAGS="${RUSTFLAGS} -C link-arg=-Wl,--allow-shlib-undefined"
+fi
+
+rustup target list --installed | grep -q "$TARGET_BASE" || rustup target add "$TARGET_BASE"
+
+# Static libssh2 so the .deb does not require libssh2-1 to be pre-installed.
+export LIBSSH2_STATIC=1
+
+# -- Frontend build (recovery Tauri UI) --------------------------------------
+bash "${WORKSPACE_DIR}/scripts/set_version.sh"
+
+echo "Building Svelte frontend (recovery)..."
+cd "${WORKSPACE_DIR}/crates/bkp-recover/ui"
+npm install --prefer-offline --no-audit --no-fund 2>&1 | tail -3
+npm run build
+cd "$WORKSPACE_DIR"
+
+# -- Version fingerprint busting ---------------------------------------------
+WORKSPACE_VER=$(tr -d '[:space:]' < "${WORKSPACE_DIR}/VERSION")
+STAMP="${TARGET_ROOT}/.recover_version_stamp_linux_arm64"
+if [[ ! -f "$STAMP" || "$(cat "$STAMP" 2>/dev/null)" != "$WORKSPACE_VER" ]]; then
+    echo "Version changed -> clean bkp-recover to re-stamp ${WORKSPACE_VER}..."
+    cargo clean -p bkp-recover --target "$TARGET_BASE" --profile "$PROFILE" 2>/dev/null || true
+    mkdir -p "$TARGET_ROOT"; echo "$WORKSPACE_VER" > "$STAMP"
+fi
+
+# -- Cargo build -------------------------------------------------------------
+# Native cross-link against the host's arm64 multiarch glibc (no cargo-zigbuild
+# glibc cap - see build_linux_x86_64.sh for why the cap collides with
+# openssl-sys).  Trade-off: the binary requires a glibc at least as new as the
+# arm64 libs on this build host; for wider compatibility build on an older
+# arm64 glibc base.
+CARGO_FLAGS="--target $TARGET_BASE"
+[[ "$PROFILE" == "release" ]] && CARGO_FLAGS="$CARGO_FLAGS --release"
+
+echo "Building nyx_bkp_recover for ${TARGET_BASE} (${PROFILE})..."
+cargo build $CARGO_FLAGS -p bkp-recover --bin nyx_bkp_recover
+
+# -- Stage -------------------------------------------------------------------
+echo "Staging files..."
+RELEASE_DIR="${TARGET_ROOT}/${TARGET_BASE}/${PROFILE}"
+rm -rf "$STAGING"; mkdir -p "$STAGING/locales"
+
+cp "$RELEASE_DIR/nyx_bkp_recover" "$STAGING/"
+
+# English is compiled into the binary; ship the rest for non-English locales.
+for f in "${WORKSPACE_DIR}/locales/"*.json; do
+    [[ "$(basename "$f")" == "en.json" ]] && continue
+    cp "$f" "$STAGING/locales/"
+done
+
+echo ""
+echo "Staged to: $STAGING"
+ls -lh "$STAGING/"
+echo ""
+echo "Next: scripts/linux/build_recover_deb_arm64.sh"

@@ -1,0 +1,204 @@
+/* Copyright (c) 2026 Nyx Software, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Nyx Backup Recovery - https://nyxbackup.com */
+
+/* Tailwind v4: one @import replaces base/components/utilities.  @config keeps the JS theme tokens without migrating to CSS-first @theme yet. */
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+/* Theme tokens - space-separated R G B integers so Tailwind's
+   `rgb(var(--x) / <alpha-value>)` preserves opacity modifiers like
+   bg-nyx-accent/30. The dark palette is the default at :root; light
+   activates when <html data-theme="light"> is set by main.ts. */
+:root {
+  color-scheme: dark;
+  --nyx-bg:        13 15 20;
+  --nyx-surface:   22 26 36;
+  --nyx-surface2:  30 36 54;
+  --nyx-border:    37 45 61;
+  --nyx-accent:    123 140 222;
+  --nyx-accent-hi: 167 139 250;
+  --nyx-success:   74 222 128;
+  --nyx-warning:   250 204 21;
+  --nyx-error:     248 113 113;
+  --nyx-text:      232 234 240;
+  --nyx-muted:     107 122 153;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --nyx-bg:        248 250 252;
+  --nyx-surface:   255 255 255;
+  --nyx-surface2:  241 245 249;
+  --nyx-border:    203 213 225;
+  --nyx-accent:    79 70 229;
+  --nyx-accent-hi: 109 40 217;
+  --nyx-success:   22 163 74;
+  --nyx-warning:   202 138 4;
+  --nyx-error:     220 38 38;
+  --nyx-text:      15 23 42;
+  --nyx-muted:     100 116 139;
+}
+
+/* Enchant - based on the Tokyo Night palette */
+[data-theme="enchant"] {
+  color-scheme: dark;
+  --nyx-bg:        26 27 38;
+  --nyx-surface:   22 22 30;
+  --nyx-surface2:  41 46 66;
+  --nyx-border:    59 66 97;
+  --nyx-accent:    122 162 247;
+  --nyx-accent-hi: 187 154 247;
+  --nyx-success:   158 206 106;
+  --nyx-warning:   224 175 104;
+  --nyx-error:     247 118 142;
+  --nyx-text:      192 202 245;
+  --nyx-muted:     86 95 137;
+}
+
+/* Dracula - https://draculatheme.com */
+[data-theme="dracula"] {
+  color-scheme: dark;
+  --nyx-bg:        40 42 54;
+  --nyx-surface:   30 32 44;
+  --nyx-surface2:  68 71 90;
+  --nyx-border:    68 71 90;
+  --nyx-accent:    189 147 249;
+  --nyx-accent-hi: 255 121 198;
+  --nyx-success:   80 250 123;
+  --nyx-warning:   241 250 140;
+  --nyx-error:     255 85 85;
+  --nyx-text:      248 248 242;
+  --nyx-muted:     98 114 164;
+}
+
+/* Solarized Dark - Ethan Schoonover.
+   Text stays at canonical base0 (#839496) -- raising it to base1 looked
+   washed out against the dark cyan-green bg.  Muted bumped from base01
+   (~2.4:1, unreadable) to base0 (~4.4:1).  Yes, that makes muted and
+   text the same colour -- Solarized doesn't define a usable "between"
+   value, and on this palette consistency beats inventing a new shade. */
+[data-theme="solarized-dark"] {
+  color-scheme: dark;
+  --nyx-bg:        0 43 54;
+  --nyx-surface:   7 54 66;
+  --nyx-surface2:  88 110 117;
+  --nyx-border:    88 110 117;
+  --nyx-accent:    38 139 210;
+  --nyx-accent-hi: 42 161 152;
+  --nyx-success:   133 153 0;
+  --nyx-warning:   181 137 0;
+  --nyx-error:     220 50 47;
+  --nyx-text:      131 148 150;
+  --nyx-muted:     131 148 150;
+}
+
+/* Solarized Light.
+   Original Solarized base1 muted (#93a1a1) only renders at ~2.6:1 on
+   the base3 background and fails WCAG AA.  Darkened muted to ~5:1 so
+   secondary labels are legible while still visibly less prominent than
+   primary text. */
+[data-theme="solarized-light"] {
+  color-scheme: light;
+  --nyx-bg:        253 246 227;
+  --nyx-surface:   238 232 213;
+  --nyx-surface2:  232 226 204;
+  --nyx-border:    147 161 161;
+  --nyx-accent:    38 139 210;
+  --nyx-accent-hi: 211 54 130;
+  --nyx-success:   133 153 0;
+  --nyx-warning:   181 137 0;
+  --nyx-error:     220 50 47;
+  --nyx-text:      101 123 131;
+  --nyx-muted:     117 130 130;
+}
+
+/* Catppuccin Mocha - https://catppuccin.com */
+[data-theme="catppuccin"] {
+  color-scheme: dark;
+  --nyx-bg:        30 30 46;
+  --nyx-surface:   24 24 37;
+  --nyx-surface2:  49 50 68;
+  --nyx-border:    69 71 90;
+  --nyx-accent:    203 166 247;
+  --nyx-accent-hi: 245 194 231;
+  --nyx-success:   166 227 161;
+  --nyx-warning:   249 226 175;
+  --nyx-error:     243 139 168;
+  --nyx-text:      205 214 244;
+  --nyx-muted:     127 132 156;
+}
+
+/* Nord - https://www.nordtheme.com
+   Nord defines `nord3` (#4c566a) as the "comments" colour, but on
+   Polar Night backgrounds that's barely legible (~2.3:1).  Bumped
+   muted to a lighter blue-gray (~5:1) so secondary labels stay readable. */
+[data-theme="nord"] {
+  color-scheme: dark;
+  --nyx-bg:        46 52 64;
+  --nyx-surface:   59 66 82;
+  --nyx-surface2:  67 76 94;
+  --nyx-border:    76 86 106;
+  --nyx-accent:    136 192 208;
+  --nyx-accent-hi: 129 161 193;
+  --nyx-success:   163 190 140;
+  --nyx-warning:   235 203 139;
+  --nyx-error:     191 97 106;
+  --nyx-text:      216 222 233;
+  --nyx-muted:     158 174 200;
+}
+
+/* Cyber - neon-green-on-near-black */
+[data-theme="cyber"] {
+  color-scheme: dark;
+  --nyx-bg:        10 14 23;
+  --nyx-surface:   17 27 39;
+  --nyx-surface2:  26 39 56;
+  --nyx-border:    31 58 72;
+  --nyx-accent:    0 255 159;
+  --nyx-accent-hi: 0 212 255;
+  --nyx-success:   16 185 129;
+  --nyx-warning:   251 191 36;
+  --nyx-error:     239 68 68;
+  --nyx-text:      224 255 224;
+  --nyx-muted:     148 163 184;
+}
+
+/* No text selection on UI chrome (re-enabled per-element where needed) */
+* {
+  user-select: none;
+}
+input,
+textarea {
+  user-select: text;
+}
+
+body {
+  background-color: rgb(var(--nyx-bg));
+  color: rgb(var(--nyx-text));
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+/* Native <select> on Linux/GTK doesn't inherit CSS colours for the dropdown
+   popup - force the platform's native palette via color-scheme above. */
+select option {
+  background-color: rgb(var(--nyx-surface2));
+  color: rgb(var(--nyx-text));
+}
+
+/* Custom scrollbar - thin, matching nyx-border */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(var(--nyx-surface));
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--nyx-border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--nyx-accent));
+}

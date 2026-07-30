@@ -1,0 +1,134 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Nyx Backup Recovery Tool standalone installer (Windows ARM64).
+  Copyright (c) 2026 Nyx Software, LLC
+  SPDX-License-Identifier: Apache-2.0
+
+  Build with:
+    scripts/windows/build_windows_arm64.sh         (compiles nyx_bkp_recover.exe)
+    scripts/windows/build_recover_msi_arm64.sh      (produces .msi)
+
+  This is the ARM64 sibling of NyxBackupRecovery-x86_64.wxs - identical
+  layout, only Platform and the ProgramFiles target differ.  It carries its
+  own UpgradeCode (distinct from the x86_64 installer) so the native ARM64
+  product is tracked and uninstalled independently of any x64 build that may
+  have been installed under emulation.
+
+  What this installer does:
+    - Copies nyx_bkp_recover.exe + WebView2Loader.dll to
+      %ProgramFiles%\Nyx Backup Recovery\
+    - Creates a Start Menu shortcut
+    - Registers an uninstaller in Add/Remove Programs
+
+  What it deliberately does NOT do:
+    - No Windows service (the main app owns the daemon)
+    - No keyring / state-DB writes; recovery only reads remote storage
+    - No autostart, no scheduled tasks - this is a manual disaster-recovery
+      tool, only launched by the user when needed
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+
+  <Product Id='*'
+           Name='Nyx Backup Recovery'
+           Version='$(var.Version)'
+           Manufacturer='Nyx Software, LLC'
+           Language='1033'
+           Codepage='1252'
+           UpgradeCode='7C3F6E9B-AD40-4B2C-9F8D-2E5A1BAC4F3D'>
+
+    <Package InstallerVersion='500'
+             Platform='arm64'
+             Compressed='yes'
+             InstallScope='perMachine'
+             InstallPrivileges='elevated'
+             Comments='Nyx Backup Recovery Tool -- standalone disaster recovery (ARM64)'/>
+
+    <!-- wixl silently ignores <MajorUpgrade Schedule=...> (and
+         <RemoveExistingProducts After=...>), so the major upgrade is
+         hand-rolled: detect prior installs via Upgrade/UpgradeVersion and
+         remove them at an explicit early sequence (1525, between
+         InstallInitialize=1500 and InstallExecute=6500).  Do NOT switch
+         back to <MajorUpgrade> - wixl cannot sequence it, so the old
+         version is left in place and the install appears to need running
+         twice. -->
+    <Upgrade Id='7C3F6E9B-AD40-4B2C-9F8D-2E5A1BAC4F3D'>
+      <UpgradeVersion Minimum='0.0.0' IncludeMinimum='yes'
+                      Maximum='$(var.Version)' IncludeMaximum='no'
+                      Property='OLDERVERSIONBEINGUPGRADED'/>
+      <UpgradeVersion Minimum='$(var.Version)' IncludeMinimum='no'
+                      OnlyDetect='yes'
+                      Property='NEWERVERSIONDETECTED'/>
+    </Upgrade>
+
+    <Condition Message='A newer version of Nyx Backup Recovery is already installed.'>
+      NOT NEWERVERSIONDETECTED
+    </Condition>
+
+    <Media Id='1' Cabinet='Recovery.cab' EmbedCab='yes'/>
+
+    <Directory Id='TARGETDIR' Name='SourceDir'>
+      <Directory Id='ProgramFiles64Folder'>
+        <Directory Id='INSTALLDIR' Name='Nyx Backup Recovery'/>
+      </Directory>
+      <Directory Id='ProgramMenuFolder'>
+        <Directory Id='AppStartMenuDir' Name='Nyx Backup Recovery'>
+          <Component Id='CmpAppStartMenuDir' Guid='*'>
+            <RemoveFolder Id='RemoveAppStartMenuDir' On='uninstall'/>
+            <RegistryValue Root='HKCU'
+                           Key='Software\NyxSoftware\NyxBackupRecovery'
+                           Name='installed'
+                           Type='integer'
+                           Value='1'
+                           KeyPath='yes'/>
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id='INSTALLDIR'>
+      <Component Id='CmpRecover' Guid='*'>
+        <File Id='FileRecover'
+              Source='$(var.StagingDir)/nyx_bkp_recover.exe'
+              KeyPath='yes'/>
+      </Component>
+      <Component Id='CmpWebView2' Guid='*'>
+        <File Id='FileWebView2'
+              Source='$(var.StagingDir)/WebView2Loader.dll'
+              KeyPath='yes'/>
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id='AppStartMenuDir'>
+      <Component Id='CmpRecoverShortcut' Guid='*'>
+        <Shortcut Id='RecoverShortcut'
+                  Name='Nyx Backup Recovery'
+                  Description='Restore from a Nyx Backup snapshot'
+                  Target='[INSTALLDIR]nyx_bkp_recover.exe'
+                  WorkingDirectory='INSTALLDIR'/>
+        <RegistryValue Root='HKCU'
+                       Key='Software\NyxSoftware\NyxBackupRecovery'
+                       Name='shortcut'
+                       Type='integer'
+                       Value='1'
+                       KeyPath='yes'/>
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id='Recovery'
+             Title='Nyx Backup Recovery'
+             Level='1'>
+      <ComponentRef Id='CmpRecover'/>
+      <ComponentRef Id='CmpWebView2'/>
+      <ComponentRef Id='CmpAppStartMenuDir'/>
+      <ComponentRef Id='CmpRecoverShortcut'/>
+    </Feature>
+
+    <!-- Early remove (1525) so any prior version is fully gone before the
+         new files install - the clean replace <MajorUpgrade> would have
+         done if wixl honoured its schedule. -->
+    <InstallExecuteSequence>
+      <RemoveExistingProducts Sequence='1525'/>
+    </InstallExecuteSequence>
+
+  </Product>
+</Wix>

@@ -1,0 +1,58 @@
+# Cross-compilation configuration for the Nyx Backup workspace.
+
+# Native Linux target: use mold for linking.
+#
+# mold collapses the final link step on the workspace from ~12-15 s to <1 s,
+# which dominates iterative-build latency once the Rust compile is done.
+# Install with `sudo apt install mold`.  Delegated via `-fuse-ld=mold`
+# rather than naming a path - gcc errors loudly if mold is missing rather
+# than silently using ld.
+#
+# gcc is used as the driver (not clang) because the workspace's native
+# Linux dev path is gcc 13 from default Ubuntu/Debian, no extra dependency.
+[target.x86_64-unknown-linux-gnu]
+linker    = "gcc"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-pc-windows-gnu]
+# Use llvm-mingw clang+LLD.  GNU ld (GCC 13) has a known bug where it emits
+# orphan IAT blocks (OrigThunk + IAT arrays) with no corresponding PE import
+# descriptor, so the Windows loader never resolves those entries and the process
+# crashes before main() with a DEP/AV at the raw hint-name RVA.  LLD correctly
+# merges all __imp_* symbols into properly-described import directory entries.
+linker = "/opt/llvm-mingw/bin/x86_64-w64-mingw32-gcc"
+ar     = "/opt/llvm-mingw/bin/x86_64-w64-mingw32-ar"
+
+# llvm-mingw uses the Windows UCRT for threading (no libwinpthread DLL needed).
+# -static-libgcc is kept so libgcc_s*.dll is not required at runtime.
+#
+# `--undefined=__emutls_get_address` forces the linker to keep libgcc.a's
+# emutls.c.obj even though --gc-sections runs first.  aws-lc-sys (pulled
+# transitively by azure_storage_blobs 0.21 -> reqwest 0.12 -> hyper-rustls
+# -> rustls -> aws-lc-rs) emits references to __emutls_get_address, which
+# is a gcc-extension symbol not provided by llvm-mingw's compiler-rt.
+# Without the --undefined keep flag, --gc-sections drops emutls.c.obj
+# before aws-lc-sys's references are resolved, producing
+#     ld.lld: error: undefined symbol: __emutls_get_address
+# at link time.
+rustflags = [
+    "-C", "link-arg=-static-libgcc",
+    # llvm-mingw ships an empty 8-byte `libgcc.a` stub at
+    # x86_64-w64-mingw32/lib/libgcc.a - so rustc's implicit `-lgcc` in
+    # the link line resolves to nothing.  The actual implementations of
+    # gcc-extension symbols (notably `__emutls_get_address`, which
+    # aws-lc-sys references) live in compiler-rt's builtins archive
+    # `libclang_rt.builtins-x86_64.a`.  Adding it explicitly with `-l:`
+    # by full filename makes the linker pull it in.  The `-Wl,--undefined`
+    # is a belt-and-suspenders keep flag in case --gc-sections runs first.
+    "-C", "link-arg=-l:libclang_rt.builtins-x86_64.a",
+    "-C", "link-arg=-Wl,--undefined=__emutls_get_address",
+]
+
+[target.aarch64-pc-windows-gnullvm]
+# Linker and AR are set via CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER and
+# AR_aarch64_pc_windows_gnullvm env vars in build_windows_arm64.sh because
+# llvm-mingw is installed to a user-chosen path, not a fixed system location.
+#
+# gnullvm targets use the Windows Universal CRT (ucrt) for threading - no
+# libwinpthread or libgcc runtime DLL is needed.

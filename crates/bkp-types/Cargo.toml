@@ -1,0 +1,17 @@
+[package]
+name        = "bkp-types"
+version.workspace = true
+edition     = "2024"
+description = "Shared domain types, error types, and constants used across all crates"
+
+[dependencies]
+thiserror   = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+serde       = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+ciborium = { workspace = true }
+# Secret<T> wrapper: zeroize-on-drop + redacted Debug for any
+# field holding a credential, license key, or other sensitive string.
+zeroize = { workspace = true }

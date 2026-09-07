@@ -1,0 +1,8 @@
+[package]
+name        = "bkp-log"
+version.workspace = true
+edition     = "2024"
+description = "Size-based rolling log appender shared by daemon, TUI, and CLI"
+
+[dependencies]
+flate2 = { workspace = true }

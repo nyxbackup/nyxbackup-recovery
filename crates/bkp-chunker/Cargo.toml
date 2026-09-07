@@ -1,0 +1,21 @@
+[package]
+name        = "bkp-chunker"
+version.workspace = true
+edition     = "2024"
+description = "Pack reader: zstd decompression and pack-index decoding for restore"
+
+[dependencies]
+thiserror   = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+serde       = { workspace = true }
+zstd = { workspace = true }
+tokio = { workspace = true }
+ciborium = { workspace = true }
+uuid = { workspace = true }
+bkp-types = { path = "../bkp-types" }
+bkp-crypto = { path = "../bkp-crypto" }
+# Reed-Solomon repair for pack .par siblings.  Pure-Rust default features so it
+# still cross-compiles to the mingw and musl targets this tool ships for.
+reed-solomon-erasure = "6"
+crc32c = "0.6"

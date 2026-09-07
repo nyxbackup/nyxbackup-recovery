@@ -1,0 +1,177 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Nyx Backup Recovery Tool standalone installer (Windows ARM64).
+  Copyright (c) 2026 Nyx Software, LLC
+  SPDX-License-Identifier: Apache-2.0
+
+  Build with:
+    scripts/windows/build_windows_arm64.sh         (compiles nyx_bkp_recover.exe)
+    scripts/windows/build_recover_msi_arm64.sh      (produces .msi)
+
+  This is the ARM64 sibling of NyxBackupRecovery-x86_64.wxs - identical
+  layout, only Platform and the ProgramFiles target differ.  It carries its
+  own UpgradeCode (distinct from the x86_64 installer) so the native ARM64
+  product is tracked and uninstalled independently of any x64 build that may
+  have been installed under emulation.
+
+  What this installer does:
+    - Copies nyx_bkp_recover.exe + WebView2Loader.dll to
+      %ProgramFiles%\Nyx Backup Recovery\
+    - Creates a Start Menu shortcut
+    - Registers an uninstaller in Add/Remove Programs
+
+  What it deliberately does NOT do:
+    - No Windows service (the main app owns the daemon)
+    - No keyring / state-DB writes; recovery only reads remote storage
+    - No autostart, no scheduled tasks - this is a manual recovery tool,
+      only launched by the user when needed
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+
+  <Product Id='*'
+           Name='Nyx Backup Recovery'
+           Version='$(var.Version)'
+           Manufacturer='Nyx Software, LLC'
+           Language='1033'
+           Codepage='1252'
+           UpgradeCode='7C3F6E9B-AD40-4B2C-9F8D-2E5A1BAC4F3D'>
+
+    <Package InstallerVersion='500'
+             Platform='arm64'
+             Compressed='yes'
+             InstallScope='perMachine'
+             InstallPrivileges='elevated'
+             Comments='Nyx Backup Recovery Tool -- standalone recovery (ARM64)'/>
+
+    <!-- wixl silently ignores <MajorUpgrade Schedule=...>, so the major
+         upgrade is hand-rolled: detect prior installs via
+         Upgrade/UpgradeVersion and schedule the removal explicitly in
+         InstallExecuteSequence at the bottom of this file.  Do NOT switch
+         back to <MajorUpgrade> - wixl cannot sequence it, so the old version
+         is left in place and the install appears to need running twice.
+
+         This comment used to add that wixl ignores
+         <RemoveExistingProducts After=...> too, and to state that removal
+         happens early at 1525.  Neither is true of this file any more.  A
+         bare <RemoveExistingProducts After='InstallExecute'> does work and
+         lands at 6501; the x86_64 package still uses the 1525 early remove,
+         and the two architectures differ deliberately.  See the note above
+         the InstallExecuteSequence below for why. -->
+    <Upgrade Id='7C3F6E9B-AD40-4B2C-9F8D-2E5A1BAC4F3D'>
+      <UpgradeVersion Minimum='0.0.0' IncludeMinimum='yes'
+                      Maximum='$(var.Version)' IncludeMaximum='no'
+                      Property='OLDERVERSIONBEINGUPGRADED'/>
+      <UpgradeVersion Minimum='$(var.Version)' IncludeMinimum='no'
+                      OnlyDetect='yes'
+                      Property='NEWERVERSIONDETECTED'/>
+    </Upgrade>
+
+    <Condition Message='A newer version of Nyx Backup Recovery is already installed.'>
+      NOT NEWERVERSIONDETECTED
+    </Condition>
+
+    <Media Id='1' Cabinet='Recovery.cab' EmbedCab='yes'/>
+
+    <Directory Id='TARGETDIR' Name='SourceDir'>
+      <Directory Id='ProgramFiles64Folder'>
+        <Directory Id='INSTALLDIR' Name='Nyx Backup Recovery'/>
+      </Directory>
+      <Directory Id='ProgramMenuFolder'>
+        <Directory Id='AppStartMenuDir' Name='Nyx Backup Recovery'>
+          <Component Id='CmpAppStartMenuDir' Guid='*'>
+            <RemoveFolder Id='RemoveAppStartMenuDir' On='uninstall'/>
+            <RegistryValue Root='HKCU'
+                           Key='Software\NyxSoftware\NyxBackupRecovery'
+                           Name='installed'
+                           Type='integer'
+                           Value='1'
+                           KeyPath='yes'/>
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <!-- libunwind.dll: ARM64 only.  aarch64-pc-windows-gnullvm links LLVM's
+         unwinder dynamically, so nyx_bkp_recover.exe imports it and will not
+         load without it.  The x86_64 GNU target links GCC's unwinder
+         statically and therefore ships nothing here. -->
+    <DirectoryRef Id='INSTALLDIR'>
+      <Component Id='CmpUnwind' Guid='*'>
+        <File Id='FileUnwind'
+              Source='$(var.StagingDir)/libunwind.dll'
+              KeyPath='yes'/>
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id='INSTALLDIR'>
+      <Component Id='CmpRecover' Guid='*'>
+        <File Id='FileRecover'
+              Source='$(var.StagingDir)/nyx_bkp_recover.exe'
+              KeyPath='yes'/>
+      </Component>
+      <Component Id='CmpWebView2' Guid='*'>
+        <File Id='FileWebView2'
+              Source='$(var.StagingDir)/WebView2Loader.dll'
+              KeyPath='yes'/>
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id='AppStartMenuDir'>
+      <Component Id='CmpRecoverShortcut' Guid='*'>
+        <Shortcut Id='RecoverShortcut'
+                  Name='Nyx Backup Recovery'
+                  Description='Restore from a Nyx Backup snapshot'
+                  Target='[INSTALLDIR]nyx_bkp_recover.exe'
+                  WorkingDirectory='INSTALLDIR'/>
+        <RegistryValue Root='HKCU'
+                       Key='Software\NyxSoftware\NyxBackupRecovery'
+                       Name='shortcut'
+                       Type='integer'
+                       Value='1'
+                       KeyPath='yes'/>
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id='Recovery'
+             Title='Nyx Backup Recovery'
+             Level='1'>
+      <ComponentRef Id='CmpRecover'/>
+      <ComponentRef Id='CmpWebView2'/>
+      <ComponentRef Id='CmpUnwind'/>
+      <ComponentRef Id='CmpAppStartMenuDir'/>
+      <ComponentRef Id='CmpRecoverShortcut'/>
+    </Feature>
+
+    <!--
+      REINSTALLMODE='amus' forces every file to be reinstalled on a major
+      upgrade regardless of version.  Without it MSI's version rule sees the
+      existing nyx_bkp_recover.exe and WebView2Loader.dll as same-or-higher
+      (both carry embedded version resources, from Tauri and from Microsoft)
+      and sets Action=Null, leaving the old files on disk.
+    -->
+    <Property Id='REINSTALLMODE' Value='amus'/>
+
+    <!--
+      LATE remove (6501, via After='InstallExecute') - deliberately NOT the
+      1525 early remove used by the x86_64 package.  The two architectures
+      differ here on purpose.
+
+      This file used to schedule 1525.  The main application hit precisely that
+      combination - early remove plus a Tauri executable and WebView2Loader.dll
+      - and found MSI skipping both files on upgrade; it moved arm64 to late
+      remove with REINSTALLMODE='amus' as a result.  This package ships the same
+      two file kinds, so it had the same latent bug.
+
+      Evidence for the ordering: an arm64 Windows 11 auto-update of the main
+      application through the 6501 path was confirmed working on real hardware
+      on 2026-09-12.  Nothing has ever validated 1525 on arm64.
+
+      Verify after any WiX change with `msiinfo export ... InstallExecuteSequence`:
+      x86_64 must read 1525, arm64 must read 6501.
+    -->
+    <InstallExecuteSequence>
+      <RemoveExistingProducts After='InstallExecute'/>
+    </InstallExecuteSequence>
+
+  </Product>
+</Wix>

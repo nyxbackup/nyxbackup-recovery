@@ -1,0 +1,6 @@
+# Test code legitimately uses unwrap()/expect() to fail fast on bad
+# fixtures.  Production code keeps the per-crate
+# #![deny(clippy::unwrap_used)] guard - these only relax it inside
+# #[cfg(test)] / #[test].
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

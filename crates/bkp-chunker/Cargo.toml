@@ -1,0 +1,17 @@
+[package]
+name        = "bkp-chunker"
+version.workspace = true
+edition     = "2024"
+description = "Pack reader: zstd decompression and pack-index decoding for restore"
+
+[dependencies]
+thiserror   = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+serde       = { workspace = true }
+zstd = { workspace = true }
+tokio = { workspace = true }
+ciborium = { workspace = true }
+uuid = { workspace = true }
+bkp-types = { path = "../bkp-types" }
+bkp-crypto = { path = "../bkp-crypto" }

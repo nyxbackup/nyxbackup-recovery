@@ -1,0 +1,37 @@
+{
+  "productName": "Nyx Backup Recovery",
+  "identifier": "com.nyxbackup.recover",
+  "build": {
+    "frontendDist": "ui/dist",
+    "devUrl": "http://localhost:5174",
+    "beforeDevCommand": { "script": "npm run dev", "cwd": "ui" },
+    "beforeBuildCommand": { "script": "npm run build", "cwd": "ui" }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Nyx Backup Recovery",
+        "width": 960,
+        "height": 700,
+        "minWidth": 720,
+        "minHeight": 540,
+        "decorations": false,
+        "transparent": false,
+        "resizable": true,
+        "center": true,
+        "visible": true
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.ico", "icons/icon.png", "icons/icon_512.png"],
+    "copyright": "Copyright (c) 2026 Nyx Software, LLC",
+    "category": "Utility",
+    "shortDescription": "Free recovery tool for Nyx Backup",
+    "longDescription": "Standalone GUI + CLI that restores data from any Nyx Backup endpoint without requiring the main daemon or a license."
+  }
+}

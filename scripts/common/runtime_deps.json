@@ -1,0 +1,105 @@
+{
+  "_comment": [
+    "Pinned runtime-dependency sets, checked by check_runtime_deps.py at the end",
+    "of every platform build.  Values were measured from the published 0.9.72",
+    "packages (PE import tables and ELF DT_NEEDED), not written from memory.",
+    "",
+    "A NEW entry appearing here is the event worth a human look, so the check",
+    "fails on anything outside these lists even when the dependency would be",
+    "satisfiable on the target.  Adding a line is cheap; shipping a package that",
+    "cannot start is not - see the 0.9.72 ARM64 libunwind.dll omission.",
+    "",
+    "windows.system_dlls      shipped with Windows; the binary may import them",
+    "windows.<arch>.bundled   must be present in the staging dir AND installed",
+    "linux.base_libs          glibc, satisfied by the Depends on libc6",
+    "linux.<arch>.extra_libs  everything else, and must be in the package Depends"
+  ],
+  "windows": {
+    "system_dll_prefixes": [
+      "api-ms-win-"
+    ],
+    "system_dlls": [
+      "advapi32.dll",
+      "bcrypt.dll",
+      "bcryptprimitives.dll",
+      "comctl32.dll",
+      "crypt32.dll",
+      "dwmapi.dll",
+      "gdi32.dll",
+      "iphlpapi.dll",
+      "kernel32.dll",
+      "mpr.dll",
+      "ncrypt.dll",
+      "ntdll.dll",
+      "ole32.dll",
+      "oleaut32.dll",
+      "pdh.dll",
+      "powrprof.dll",
+      "psapi.dll",
+      "secur32.dll",
+      "shell32.dll",
+      "shlwapi.dll",
+      "user32.dll",
+      "vssapi.dll",
+      "wer.dll",
+      "ws2_32.dll"
+    ],
+    "x86_64": {
+      "bundled": [
+        "WebView2Loader.dll"
+      ]
+    },
+    "arm64": {
+      "bundled": [
+        "WebView2Loader.dll",
+        "libunwind.dll"
+      ]
+    }
+  },
+  "linux": {
+    "base_libs": [
+      "ld-linux-aarch64.so.1",
+      "ld-linux-x86-64.so.2",
+      "libc.so.6",
+      "libdl.so.2",
+      "libm.so.6",
+      "libpthread.so.0"
+    ],
+    "x86_64": {
+      "extra_libs": [
+        "libcairo.so.2",
+        "libdbus-1.so.3",
+        "libgcc_s.so.1",
+        "libgdk-3.so.0",
+        "libgdk_pixbuf-2.0.so.0",
+        "libgio-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libgtk-3.so.0",
+        "libjavascriptcoregtk-4.1.so.0",
+        "libsmbclient.so.0",
+        "libsoup-3.0.so.0",
+        "libwebkit2gtk-4.1.so.0",
+        "libz.so.1"
+      ]
+    },
+    "arm64": {
+      "extra_libs": [
+        "libcairo.so.2",
+        "libdbus-1.so.3",
+        "libgcc_s.so.1",
+        "libgdk-3.so.0",
+        "libgdk_pixbuf-2.0.so.0",
+        "libgio-2.0.so.0",
+        "libglib-2.0.so.0",
+        "libgobject-2.0.so.0",
+        "libgtk-3.so.0",
+        "libjavascriptcoregtk-4.1.so.0",
+        "libsmbclient.so.0",
+        "libsoup-3.0.so.0",
+        "libwebkit2gtk-4.1.so.0",
+        "libz.so.1"
+      ]
+    }
+  }
+}

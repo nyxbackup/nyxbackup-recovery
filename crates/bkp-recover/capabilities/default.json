@@ -1,0 +1,19 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema/capabilities-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for Nyx Backup Recovery Tool",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:path:default",
+    "shell:default",
+    "dialog:default",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-start-dragging",
+    "core:window:allow-show"
+  ]
+}

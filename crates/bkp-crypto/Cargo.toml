@@ -1,0 +1,34 @@
+[package]
+name        = "bkp-crypto"
+version.workspace = true
+edition     = "2024"
+description = "Decryption, hashing, key derivation: AES-256-GCM, HMAC-SHA256, HKDF-SHA256, PBKDF2, Argon2id (pure-Rust, recovery read path)."
+
+
+# KDF algorithm choice (Argon2id default; PBKDF2 for federal installs)
+# is now a runtime decision read from the machine record's
+# `Argon2Params.algorithm` field, set at install time and locked
+# thereafter.  See bkp_crypto::kdf::derive_master_key.
+
+[dependencies]
+thiserror   = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+aes-gcm          = { workspace = true }
+# AES-256-GCM (decrypt), HMAC-SHA256, SHA-256, HKDF-SHA256 - all pure-Rust
+# (RustCrypto), used by the backend module and bkp-crypto::hmac.
+hmac             = { workspace = true }
+sha2             = { workspace = true }
+hkdf             = { workspace = true }
+pbkdf2 = { workspace = true }
+argon2 = { workspace = true, features = ["password-hash"] }
+unicode-normalization = { workspace = true }
+hex  = { workspace = true }
+rand = { workspace = true }
+zeroize = { workspace = true }
+bkp-types = { path = "../bkp-types" }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }

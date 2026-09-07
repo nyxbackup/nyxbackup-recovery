@@ -1,0 +1,28 @@
+[package]
+name        = "bkp-config"
+version.workspace = true
+edition     = "2024"
+description = "Configuration file parsing and validation (TOML backup sets and endpoints)"
+
+[dependencies]
+thiserror   = { workspace = true }
+libc        = { workspace = true }
+anyhow      = { workspace = true }
+tracing     = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+toml        = { workspace = true }
+uuid        = { workspace = true }
+hex         = { workspace = true }
+bkp-types   = { path = "../bkp-types" }
+bkp-crypto  = { path = "../bkp-crypto" }  # for explicit per-OS DRBG routing (KdfParamsConfig::fresh_at_install)
+
+[dev-dependencies]
+tempfile    = "3"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+] }

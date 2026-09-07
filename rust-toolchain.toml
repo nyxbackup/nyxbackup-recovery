@@ -1,0 +1,19 @@
+# Pin the rustc toolchain so every contributor and CI runner builds with the
+# same compiler.  Bumping this file is the only place to change rustc - cargo
+# auto-installs the channel on first invocation.
+#
+# Tied to workspace edition 2024 (requires rustc >= 1.85).  Bump the channel
+# to the latest stable when the team is ready; minor patches within a major
+# are safe.
+[toolchain]
+channel    = "1.96"
+profile    = "default"
+components = ["rustfmt", "clippy"]
+targets    = [
+    "x86_64-pc-windows-gnu",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-pc-windows-gnullvm",
+    "aarch64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+]

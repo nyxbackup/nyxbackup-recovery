@@ -1,0 +1,114 @@
+# Copyright (c) 2026 Nyx Software, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# CI for the Nyx Backup Recovery Tool.
+#
+# This repository is the public, auditable half of the product's trust story:
+# the tool that reads a backup when the app that wrote it is gone.  So the
+# checks that run here are the ones a reader would want to see passing before
+# trusting the code, and they run on every push and pull request.
+#
+# Two jobs, split deliberately:
+#
+#   check  - fmt, clippy and tests across the library crates.  No system
+#            libraries, so it is fast and cannot be broken by a runner image
+#            changing its GTK packages.  This is the job that gates a merge.
+#   gui    - the same for bkp-recover, which is Tauri and therefore needs
+#            WebKitGTK and a built frontend.  Kept separate because its
+#            dependencies are heavy and more fragile; a failure here is a real
+#            failure, but it should not be confused with a failure in the
+#            restore logic.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # A failed build should say why, not scroll.
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: fmt / clippy / test (library crates)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml pins the channel AND lists six cross-compilation
+      # targets.  CI only builds for the host, and installing the other five
+      # costs minutes per run for nothing, so ask for the host target only.
+      - name: Install the pinned toolchain (host target only)
+        run: |
+          rustup toolchain install "$(grep -oP 'channel\s*=\s*"\K[^"]+' rust-toolchain.toml)" \
+            --profile minimal --component rustfmt,clippy --no-self-update
+          rustup default "$(grep -oP 'channel\s*=\s*"\K[^"]+' rust-toolchain.toml)"
+          rustc --version && cargo --version
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      # bkp-recover is excluded here: it is Tauri, needs WebKitGTK, and is
+      # covered by the `gui` job below.  Everything that actually reads a
+      # backup - crypto, manifest, chunker, storage, restore - is in scope.
+      - name: Clippy (deny warnings)
+        run: |
+          cargo clippy --workspace --exclude bkp-recover --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace --exclude bkp-recover
+
+  gui:
+    name: clippy / test (Tauri app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # WebKitGTK 4.1 and its friends.  Ubuntu 24.04 runners carry 4.1; if a
+      # future runner image drops it, this job fails loudly here rather than
+      # producing a confusing link error later.
+      - name: System libraries for Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            patchelf
+
+      - name: Install the pinned toolchain (host target only)
+        run: |
+          rustup toolchain install "$(grep -oP 'channel\s*=\s*"\K[^"]+' rust-toolchain.toml)" \
+            --profile minimal --component clippy --no-self-update
+          rustup default "$(grep -oP 'channel\s*=\s*"\K[^"]+' rust-toolchain.toml)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: crates/bkp-recover/ui/package-lock.json
+
+      # tauri.conf.json points frontendDist at ui/dist, and the build script
+      # reads it - so the frontend must be built before cargo touches this
+      # crate, or the build fails on a missing directory rather than on
+      # anything to do with the Rust code.
+      - name: Build the frontend
+        working-directory: crates/bkp-recover/ui
+        run: |
+          npm ci
+          npm run build
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy -p bkp-recover --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test -p bkp-recover

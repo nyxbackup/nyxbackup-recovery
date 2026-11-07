@@ -14,6 +14,10 @@ change does not require a major release of this tool.
 
 ## [Unreleased]
 
+### Fixed
+
+- every translation reviewed in context, in all 23 languages
+
 ## [1.0.0] - 2026-09-13
 
 First stable release.

@@ -17,6 +17,7 @@ change does not require a major release of this tool.
 ### Fixed
 
 - every translation reviewed in context, in all 23 languages
+- the language list's "follow the system" choice is translated instead of always reading "Auto"
 
 ## [1.0.0] - 2026-09-13
 

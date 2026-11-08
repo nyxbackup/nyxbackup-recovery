@@ -163,7 +163,9 @@
         class="bg-nyx-bg border border-nyx-border rounded px-2 py-1.5 text-xs"
       >
         {#each LANGUAGES as l (l.id)}
-          <option value={l.id}>{l.label}</option>
+          <!-- The "follow the OS" choice is translated; it read "Auto" in
+               English in every language (translation review 2026-11-07). -->
+          <option value={l.id}>{l.id === 'auto' ? t('gui.recover.settings.language_auto') : l.label}</option>
         {/each}
       </select>
       <span class="text-[10px] text-nyx-muted">
